@@ -1,0 +1,50 @@
+{
+    "builders": [
+        {
+            "type": "amazon-ebs",
+            "name": "web",
+            "region": "ap-southeast-1",
+            "source_ami_filter": {
+                "filters": {
+                    "virtualization-type": "hvm",
+                    "name": "ubuntu/images/hvm-ssd/ubuntu-xenial-16.04-amd64-server-*",
+                    "root-device-type": "ebs"
+                },
+                "owners": ["099720109477"],
+                "most_recent": true
+            },
+            "instance_type": "t2.nano",
+            "ssh_username": "ubuntu",
+            "ami_name": "devops-playground-{{ build_name }}",
+            "ami_description": "A simple web server for playing with DevOps",
+            "force_deregister": true,
+            "force_delete_snapshot": true,
+            "run_tags": {
+                "Name": "devops-playground-{{ build_name }}",
+                "App": "devops-playground"
+            },
+            "run_volume_tags": {
+                "Name": "devops-playground-{{ build_name }}",
+                "App": "devops-playground"
+            },
+            "snapshot_tags": {
+                "Name": "devops-playground-{{ build_name }}",
+                "App": "devops-playground"
+            },
+            "tags": {
+                "Name": "devops-playground-{{ build_name }}",
+                "App": "devops-playground"
+            }
+        }
+    ],
+    "provisioners": [
+        {
+            "type": "shell",
+            "execute_command": "echo 'packer' | sudo -S env {{ .Vars  }} {{ .Path }}",
+            "inline": [
+                "apt-get update",
+                "apt-get install nginx -y"
+            ]
+        }
+    ]
+}
