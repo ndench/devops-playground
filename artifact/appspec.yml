@@ -1,0 +1,20 @@
+version: 0.0
+os: linux 
+
+files:
+  - source: /
+    destination: /var/www
+
+permissions:
+  - object: /srv/www/
+    owner: root
+    group: root
+    mode: 755
+    type:
+      - directory
+  - object: /var/www
+    owner: root
+    group: root
+    mode: 644
+    type:
+      - file
