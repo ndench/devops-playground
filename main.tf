@@ -110,13 +110,14 @@ module "autoscaling" {
   source  = "terraform-aws-modules/autoscaling/aws"
   version = "~> 2.8.0"
 
-  name          = "${local.app_name}-web"
+  name = "${local.app_name}-web"
 
-  image_id            = "${data.aws_ami.web.id}"
-  instance_type       = "t2.nano"
-  key_name            = "${var.ssh_key_name}"
-  vpc_zone_identifier = "${module.vpc.public_subnets}"
-  security_groups     = [
+  image_id             = "${data.aws_ami.web.id}"
+  instance_type        = "t2.nano"
+  key_name             = "${var.ssh_key_name}"
+  vpc_zone_identifier  = "${module.vpc.public_subnets}"
+  iam_instance_profile = "${module.ec2_iam_role.profile_name}"
+  security_groups      = [
     "${module.vpc.default_security_group_id}",
     "${module.security_group_ssh.this_security_group_id}",
     "${module.security_group_web.this_security_group_id}",
@@ -126,9 +127,10 @@ module "autoscaling" {
   max_size          = 1
   desired_capacity  = 1
 
-  target_group_arns = ["${module.loadbalancer.target_group_arns}"]
-  health_check_type = "ELB"
-  min_elb_capacity  = 1
+  target_group_arns         = ["${module.loadbalancer.target_group_arns}"]
+  health_check_type         = "ELB"
+  health_check_grace_period = 60
+  min_elb_capacity          = 1
 
   recreate_asg_when_lc_changes = true
 
@@ -138,7 +140,7 @@ module "autoscaling" {
     {
       key                 = "deployment_group"
       value               = "${local.app_name}"
-      propogate_at_launch = true
+      propagate_at_launch = true
     }
   ]
 }
@@ -208,4 +210,47 @@ resource "aws_codedeploy_deployment_group" "this" {
     type = "KEY_AND_VALUE"
     value  = "${local.app_name}"
   }
+}
+
+/*
+ * Setup IAM role for deployments
+ */
+resource "random_pet" "bucket" {
+}
+
+resource "aws_s3_bucket" "this" {
+  bucket        = "${random_pet.bucket.id}"
+  force_destroy = true
+
+  tags = "${local.default_tags}"
+}
+
+data "aws_iam_policy_document" "ec2_deploy_policy" {
+  statement {
+    actions = [
+      "s3:GetObject",
+      "s3:GetObjectVersion",
+      "s3:ListObjects",
+    ]
+
+    resources = ["${aws_s3_bucket.this.arn}/*"]
+  }
+}
+
+resource "aws_iam_policy" "ec2_deploy_policy" {
+  name        = "${local.app_name}-ec2-deploy-policy"
+  path        = "/service-role/"
+  description = "Policy used by EC2 instaces to pull builds from S3"
+  policy      = "${data.aws_iam_policy_document.ec2_deploy_policy.json}"
+}
+
+module "ec2_iam_role" {
+  source     = "Smartbrood/ec2-iam-role/aws"
+  version    = "0.3.0"
+
+  name        = "${local.app_name}-ec2-role"
+  description = "Role allowing an ec2 instance to access required AWS resources"
+  policy_arn  = [
+    "${aws_iam_policy.ec2_deploy_policy.arn}",
+  ]
 }

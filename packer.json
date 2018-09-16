@@ -43,7 +43,10 @@
             "execute_command": "echo 'packer' | sudo -S env {{ .Vars  }} {{ .Path }}",
             "inline": [
                 "apt-get update",
-                "apt-get install nginx -y"
+                "apt-get install nginx ruby wget awscli -y",
+                "wget https://aws-codedeploy-ap-southeast-2.s3.amazonaws.com/latest/install",
+                "chmod +x ./install",
+                "./install auto"
             ]
         }
     ]
