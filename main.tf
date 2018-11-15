@@ -116,7 +116,7 @@ module "autoscaling" {
   instance_type        = "t2.nano"
   key_name             = "${var.ssh_key_name}"
   vpc_zone_identifier  = "${module.vpc.public_subnets}"
-  iam_instance_profile = "${module.ec2_iam_role.profile_name}"
+  iam_instance_profile = "${aws_iam_role.ec2_profile.name}"
   security_groups      = [
     "${module.vpc.default_security_group_id}",
     "${module.security_group_ssh.this_security_group_id}",
@@ -184,12 +184,97 @@ module "loadbalancer" {
 }
 
 /*
- * Setup codedeploy 
+ * Set up CodeDeploy and IAM role for CodeDeploy
  */
-data "aws_iam_role" "codedeploy" {
-  name = "sunfish-codedeploy"
+data "aws_iam_policy_document" "assume_codedeploy" {
+  statement {
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["codedeploy.amazonaws.com"]
+    }
+  }
 }
 
+data "aws_iam_policy_document" "codedeploy_policy" {
+  statement {
+    actions = [
+      "autoscaling:CompleteLifecycleAction",
+      "autoscaling:DeleteLifecycleHook",
+      "autoscaling:DescribeAutoScalingGroups",
+      "autoscaling:DescribeLifecycleHooks",
+      "autoscaling:PutLifecycleHook",
+      "autoscaling:RecordLifecycleActionHeartbeat",
+      "autoscaling:CreateAutoScalingGroup",
+      "autoscaling:UpdateAutoScalingGroup",
+      "autoscaling:EnableMetricsCollection",
+      "autoscaling:DescribePolicies",
+      "autoscaling:DescribeScheduledActions",
+      "autoscaling:DescribeNotificationConfigurations",
+      "autoscaling:SuspendProcesses",
+      "autoscaling:ResumeProcesses",
+      "autoscaling:AttachLoadBalancers",
+      "autoscaling:PutScalingPolicy",
+      "autoscaling:PutScheduledUpdateGroupAction",
+      "autoscaling:PutNotificationConfiguration",
+      "autoscaling:DescribeScalingActivities",
+      "autoscaling:DeleteAutoScalingGroup",
+      "ec2:DescribeInstances",
+      "ec2:DescribeInstanceStatus",
+      "ec2:TerminateInstances",
+      "tag:GetTags",
+      "tag:GetResources",
+      "sns:Publish",
+      "cloudwatch:DescribeAlarms",
+      "cloudwatch:PutMetricAlarm",
+      "elasticloadbalancing:DescribeLoadBalancers",
+      "elasticloadbalancing:DescribeInstanceHealth",
+      "elasticloadbalancing:RegisterInstancesWithLoadBalancer",
+      "elasticloadbalancing:DeregisterInstancesFromLoadBalancer",
+      "elasticloadbalancing:DescribeTargetGroups",
+      "elasticloadbalancing:DescribeTargetHealth",
+      "elasticloadbalancing:RegisterTargets",
+      "elasticloadbalancing:DeregisterTargets",
+    ]
+
+    # TODO: Limit these to specific resources
+    resources = ["*"]
+  }
+
+  statement {
+    actions = [
+      "logs:CreateLogGroup",
+      "logs:CreateLogStream",
+      "logs:PutLogEvents",
+      "logs:DescribeLogStreams",
+    ]
+
+    resources = ["arn:aws:logs:*:*:*"]
+  }
+}
+
+resource "aws_iam_policy" "codedeploy_policy" {
+  name        = "${local.app_name}-codedeploy-policy"
+  path        = "/service-role/"
+  description = "Policy used by CodeDeploy to deploy ${local.app_name}"
+  policy      = "${data.aws_iam_policy_document.codedeploy_policy.json}"
+}
+
+resource "aws_iam_role" "codedeploy" {
+  name               = "${local.app_name}-codedeploy"
+  description        = "Role allowing CodeDeploy to access AWS resources"
+  assume_role_policy = "${data.aws_iam_policy_document.assume_codedeploy.json}"
+}
+
+resource "aws_iam_role_policy_attachment" "codedeploy_policy_attachment" {
+  role       = "${aws_iam_role.codedeploy.name}"
+  policy_arn = "${aws_iam_policy.codedeploy_policy.arn}"
+}
+
+/*
+ * Setup codedeploy 
+ */
 resource "aws_codedeploy_app" "this" {
   name = "${local.app_name}"
 }
@@ -197,7 +282,7 @@ resource "aws_codedeploy_app" "this" {
 resource "aws_codedeploy_deployment_group" "this" {
   app_name              = "${aws_codedeploy_app.this.name}"
   deployment_group_name = "${local.app_name}"
-  service_role_arn      = "${data.aws_iam_role.codedeploy.arn}"
+  service_role_arn      = "${aws_iam_role.codedeploy.arn}"
 
   load_balancer_info {
     target_group_info {
@@ -244,13 +329,36 @@ resource "aws_iam_policy" "ec2_deploy_policy" {
   policy      = "${data.aws_iam_policy_document.ec2_deploy_policy.json}"
 }
 
-module "ec2_iam_role" {
-  source     = "Smartbrood/ec2-iam-role/aws"
-  version    = "0.3.0"
-
-  name        = "${local.app_name}-ec2-role"
-  description = "Role allowing an ec2 instance to access required AWS resources"
-  policy_arn  = [
-    "${aws_iam_policy.ec2_deploy_policy.arn}",
-  ]
+/*
+ * Attch the policies to a role and iam instance profile to give to 
+ * EC2 instances.
+ */
+resource "aws_iam_instance_profile" "ec2_profile" {
+  name = "${local.app_name}-ec2-profile"
+  role = "${aws_iam_role.ec2_profile.name}"
+  path = "/"
 }
+
+resource "aws_iam_role" "ec2_profile" {
+  name                  = "${local.app_name}-ec2-profile"
+  path                  = "/"
+  description           = "Role allowing an ec2 instance to access required AWS resources"
+  assume_role_policy    = "${data.aws_iam_policy_document.ec2_role.json}"
+}
+
+data "aws_iam_policy_document" "ec2_role" {
+  statement {
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["ec2.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "ec2_deploy_policy" {
+  role       = "${aws_iam_role.ec2_profile.name}"
+  policy_arn = "${aws_iam_policy.ec2_deploy_policy.arn}"
+}
+
