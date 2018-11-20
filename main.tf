@@ -128,20 +128,20 @@ module "autoscaling" {
   desired_capacity  = 1
 
   target_group_arns         = ["${module.loadbalancer.target_group_arns}"]
-  health_check_type         = "ELB"
-  health_check_grace_period = 60
-  min_elb_capacity          = 1
+  health_check_type         = "EC2"
+  health_check_grace_period = 300
+  #min_elb_capacity          = 1
 
   recreate_asg_when_lc_changes = true
 
   tags_as_map = "${local.default_tags}"
 
   tags = [
-    {
-      key                 = "deployment_group"
-      value               = "${local.app_name}"
-      propagate_at_launch = true
-    }
+#    {
+#      key                 = "deployment_group"
+#      value               = "${local.app_name}"
+#      propagate_at_launch = true
+#    }
   ]
 }
 
@@ -283,6 +283,7 @@ resource "aws_codedeploy_deployment_group" "this" {
   app_name              = "${aws_codedeploy_app.this.name}"
   deployment_group_name = "${local.app_name}"
   service_role_arn      = "${aws_iam_role.codedeploy.arn}"
+  autoscaling_groups    = ["${module.autoscaling.this_autoscaling_group_id}"]
 
   load_balancer_info {
     target_group_info {

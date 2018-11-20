@@ -39,3 +39,11 @@ Deploy the new ami:
 ```sh
 $ terraform apply
 ```
+
+## Notes
+
+With autoscaling group set on deployment group, new autoscaling instances will get the application
+deployed, but the first instance doesn't get deployed.
+
+Without the autoscaling group set but using tags, instances don't get deployed to when they boot.
+
