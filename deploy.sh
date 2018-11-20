@@ -5,10 +5,10 @@ if [[ $# -ne 1 ]]; then
   exit 1
 fi
 
-rm /tmp/artifact.zip
+rm -f /tmp/artifact.zip
 pushd artifact
 zip -r ../artifact.zip *
 popd
-aws s3 cp artifact.zip s3://$1/test/devops-playgound.zip
+aws s3 cp artifact.zip s3://$1/test/devops-playground.zip
 
-aws deploy register-application-revision --application-name devops-playground --s3-location bucket=$1,bundleType=zip,key=test/devops-playground.zip --region ap-southeast-1
+aws deploy create-deployment --application-name devops-playground --deployment-group-name devops-playground --s3-location bucket=$1,bundleType=zip,key=test/devops-playground.zip --region ap-southeast-1

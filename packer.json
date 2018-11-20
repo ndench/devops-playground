@@ -44,9 +44,11 @@
             "inline": [
                 "apt-get update",
                 "apt-get install nginx ruby wget awscli -y",
+                "rm /var/www/html/index.nginx-debian.html",
                 "wget https://aws-codedeploy-ap-southeast-2.s3.amazonaws.com/latest/install",
                 "chmod +x ./install",
-                "./install auto"
+                "./install auto",
+                "sudo service codedeploy-agent restart"
             ]
         }
     ]

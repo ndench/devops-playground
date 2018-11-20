@@ -22,22 +22,20 @@ it access to create and destroy resources:
 $ aws configure
 ```
 
-Make sure the artifact exists in s3:
+Deploy a new revision:
 
 ```sh
-$ cd artifact
-$ zip -r ../artifact.zip *
-$ cd ..
-$ aws s3 cp artifact.zip s3://<bucket_name>/test/devops-playgound.zip
+$ ./deploy.sh <S3 Bucket Name>
 ```
 
-Create an application revision:
+Build a new ami:
 
 ```sh
-$ aws deploy register-application-revision --application-name devops-playground --s3-location bucket=<bucket_name>,bundleType=zip,key=test/devops-playground.zip --region ap-southeast-1
+$ packer build packer.json
 ```
 
-## TODO:
+Deploy the new ami:
 
-- Get codedeploy to deploy a revision
-- Remove default nginx html
+```sh
+$ terraform apply
+```
