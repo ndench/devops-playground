@@ -113,7 +113,7 @@ module "autoscaling" {
   name = "${local.app_name}-web"
 
   image_id             = "${data.aws_ami.web.id}"
-  instance_type        = "t2.nano"
+  instance_type        = "t2.medium"
   key_name             = "${var.ssh_key_name}"
   vpc_zone_identifier  = "${module.vpc.public_subnets}"
   iam_instance_profile = "${aws_iam_role.ec2_profile.name}"
@@ -130,19 +130,25 @@ module "autoscaling" {
   target_group_arns         = ["${module.loadbalancer.target_group_arns}"]
   health_check_type         = "EC2"
   health_check_grace_period = 300
-  #min_elb_capacity          = 1
+  min_elb_capacity          = 1
 
   recreate_asg_when_lc_changes = true
 
   tags_as_map = "${local.default_tags}"
 
   tags = [
-#    {
-#      key                 = "deployment_group"
-#      value               = "${local.app_name}"
-#      propagate_at_launch = true
-#    }
+    {
+      key                 = "deployment_group"
+      value               = "${local.app_name}"
+      propagate_at_launch = true
+    }
   ]
+
+  user_data = <<EOF
+#!/bin/bash
+sleep 30s
+aws deploy create-deployment --application-name ${aws_codedeploy_deployment_group.this.app_name} --deployment-group-name ${aws_codedeploy_deployment_group.this.deployment_group_name} --update-outdated-instances-only --region ${var.region}
+EOF
 }
 
 /*
@@ -283,7 +289,8 @@ resource "aws_codedeploy_deployment_group" "this" {
   app_name              = "${aws_codedeploy_app.this.name}"
   deployment_group_name = "${local.app_name}"
   service_role_arn      = "${aws_iam_role.codedeploy.arn}"
-  autoscaling_groups    = ["${module.autoscaling.this_autoscaling_group_id}"]
+  #autoscaling_groups    = ["${module.autoscaling.this_autoscaling_group_id}"]
+
 
   load_balancer_info {
     target_group_info {
@@ -361,5 +368,10 @@ data "aws_iam_policy_document" "ec2_role" {
 resource "aws_iam_role_policy_attachment" "ec2_deploy_policy" {
   role       = "${aws_iam_role.ec2_profile.name}"
   policy_arn = "${aws_iam_policy.ec2_deploy_policy.arn}"
+}
+
+resource "aws_iam_role_policy_attachment" "ec2_codedeploy_access" {
+  role       = "${aws_iam_role.ec2_profile.name}"
+  policy_arn = "arn:aws:iam::aws:policy/AWSCodeDeployDeployerAccess"
 }
 
