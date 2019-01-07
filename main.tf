@@ -124,11 +124,11 @@ module "autoscaling" {
   ]
 
   min_size          = 1
-  max_size          = 1
-  desired_capacity  = 1
+  max_size          = 2
+  desired_capacity  = 2
 
   target_group_arns         = ["${module.loadbalancer.target_group_arns}"]
-  health_check_type         = "EC2"
+  health_check_type         = "ELB"
   health_check_grace_period = 300
   min_elb_capacity          = 1
 
@@ -146,7 +146,7 @@ module "autoscaling" {
 
   user_data = <<EOF
 #!/bin/bash
-sleep 30s
+sleep 10s
 aws deploy create-deployment --application-name ${aws_codedeploy_deployment_group.this.app_name} --deployment-group-name ${aws_codedeploy_deployment_group.this.deployment_group_name} --update-outdated-instances-only --region ${var.region}
 EOF
 }

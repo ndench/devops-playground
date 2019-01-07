@@ -42,8 +42,8 @@
             "type": "shell",
             "execute_command": "echo 'packer' | sudo -S env {{ .Vars  }} {{ .Path }}",
             "inline": [
+                "export DEBIAN_FRONTEND=noninteractive",
                 "apt-get update",
-                "apt-get upgrade -y",
                 "apt-get install nginx ruby wget awscli -y",
                 "rm /var/www/html/index.nginx-debian.html",
                 "wget https://aws-codedeploy-ap-southeast-2.s3.amazonaws.com/latest/install",
